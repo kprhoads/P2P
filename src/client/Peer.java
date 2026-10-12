@@ -2,7 +2,7 @@ import java.net.*;
 import java.io.*;
 import java.nio.*;
 import java.nio.channels.*;
-import java.nio.file.*
+import java.nio.file.*;
 import java.util.*;
 
 public class Peer {
@@ -12,14 +12,14 @@ public class Peer {
     private int hasFile;
     private final Path peerDir;
     // List of all peers that this peer will attempt to connect with (In project example, 1003 will connect with 1002 and 1001)
-    private ArrayList<int> peersToConnect;
+    private ArrayList<Integer> peersToConnect;
     // List containing all Connection objects for this peer
     private ArrayList<Connection> connections;
 
     public Peer(int myId) {
         this.myId = myId;
         // Peer directories are located in root project directory
-        this.peerDir = "../../peer_" + myId;
+        this.peerDir = Paths.get("peer_" + myId);
         this.peersToConnect = new ArrayList<>();
         this.connections = new ArrayList<>();
     }
