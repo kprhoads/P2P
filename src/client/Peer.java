@@ -7,8 +7,8 @@ import java.util.*;
 
 public class Peer {
     private final int myId;
-    private final String host;
-    private final int port;
+    private String host;
+    private int port;
     private int hasFile;
     private final Path peerDir;
     // List of all peers that this peer will attempt to connect with (In project example, 1003 will connect with 1002 and 1001)
@@ -33,7 +33,7 @@ public class Peer {
          *   - Whether this peer has the complete file
          */
         try {
-            List<String> lines = Files.readAllLines(Paths.get("../../PeerInfo.cfg"));
+            List<String> lines = Files.readAllLines(Paths.get("PeerInfo.cfg"));
 
             for (String line : lines) {
                 line = line.trim();
@@ -55,10 +55,10 @@ public class Peer {
                     // The current line contains a peer we will need to connect to. Add to peersToConnect
                     this.peersToConnect.add(Integer.parseInt(content[0]));
                 }
-            } catch(IOException e){
+            }
+        } catch(IOException e){
                 System.err.println("Error reading the PeerInfo config file: " + e.getMessage());
             }
-        }
     }
 
     private void startListening() {
@@ -146,5 +146,12 @@ public class Peer {
                 ioException.printStackTrace();
             }
         }
+    }
+
+    public static void main(String[] args) {
+        int id = Integer.parseInt(args[0]);
+        Peer p = new Peer(id);
+        p.readPeerInfo();
+        System.out.println("host=" + p.host + " port=" + p.port + " hasFile=" + p.hasFile + " connectTo=" + p.peersToConnect);
     }
 }
