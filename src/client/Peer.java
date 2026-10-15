@@ -179,13 +179,16 @@ public class Peer {
         System.out.println("Connected peer " + peerId + " on socket " + s.getRemoteSocketAddress());
     }
 
-    private void connectTo(String host, int port, int expectedId) {
+    private void connectTo(String host, int port, int expectedId) throws IOException {
+        // Connect to remote peer and send handshake
         Socket s = null;
         try {
             s = new Socket(host, port);
+            // ID the other side actually sent
             int remoteId = doHandshake(s);
+            // check if passed ID matches the ID returned from handshake, freak out if no
             if (remoteId != expectedId) {
-                throw new IOException("Expected peer " + expectedId + " but got " + remoteId);
+                throw new IOException("Handshake ID mismatch: expected " + expectedId + ", got " + remoteId);
             }
             Connection c = new Connection(s, remoteId);
             connections.add(c);
@@ -193,7 +196,12 @@ public class Peer {
             System.out.println("Connected to peer " + remoteId + " on socket " + s.getRemoteSocketAddress());
         } catch (IOException e) {
             System.err.println("Could not connect to " + host + " on port " + port + ": " + e.getMessage());
-            try { if (s != null) s.close(); } catch (IOException ignored) {}
+            if (s != null) {
+                // close quietly
+                try {
+                    s.close();
+                } catch (IOException ignored) {}
+            }
         }
     }
 
@@ -211,6 +219,7 @@ public class Peer {
         private DataOutputStream out;    //stream write to the socket
         private int peerID;        //The ID of the connected peer
 
+        public Connection(Socket connection, int peerID) throws IOException {
         public Connection(Socket connection, int peerID) throws IOException {
             this.connection = connection;
             this.peerID = peerID;
@@ -233,8 +242,8 @@ public class Peer {
                     //send MESSAGE back to the peer
                     sendMessage(MESSAGE);
                 }
-            } catch (IOException ioException) {
-                System.err.println("Error reading message from peer " + peerID + ": " + ioException.getMessage());
+            } catch (ClassNotFoundException | IOException classnot) {
+                System.err.println("Data received in unknown format");
             } finally {
                 //Close connections
                 try {
