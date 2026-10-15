@@ -173,25 +173,27 @@ public class Peer {
     private void connectPeer(Socket s) throws IOException {
         // Send handshake to accept remote peer connection
         int peerId = doHandshake(s);
-        Connection c = new Connection(s, peerId)
+        Connection c = new Connection(s, peerId);
         connections.add(c);
         c.start();
         System.out.println("Connected peer " + peerId + " on socket " + s.getRemoteSocketAddress());
     }
 
-    private void connectTo(String host, int port, int peerId) {
-        // Connect to remote peer and send handshake
+    private void connectTo(String host, int port, int expectedId) {
         Socket s = null;
         try {
             s = new Socket(host, port);
-            int peerId = doHandshake(s);
-            Connection c = new Connection(s, peerId)
+            int remoteId = doHandshake(s);
+            if (remoteId != expectedId) {
+                throw new IOException("Expected peer " + expectedId + " but got " + remoteId);
+            }
+            Connection c = new Connection(s, remoteId);
             connections.add(c);
             c.start();
-            System.out.println("Connected to peer " + peerId + " on socket " + s.getRemoteSocketAddress());
+            System.out.println("Connected to peer " + remoteId + " on socket " + s.getRemoteSocketAddress());
         } catch (IOException e) {
             System.err.println("Could not connect to " + host + " on port " + port + ": " + e.getMessage());
-            if (s != null) s.close();
+            try { if (s != null) s.close(); } catch (IOException ignored) {}
         }
     }
 
@@ -205,25 +207,25 @@ public class Peer {
         private String message;    //message received from the peer
         private String MESSAGE;    //uppercase message send to the peer
         private Socket connection;
-        private ObjectInputStream in;    //stream read from the socket
-        private ObjectOutputStream out;    //stream write to the socket
+        private DataInputStream in;    //stream read from the socket
+        private DataOutputStream out;    //stream write to the socket
         private int peerID;        //The ID of the connected peer
 
-        public Connection(Socket connection, int peerID) {
+        public Connection(Socket connection, int peerID) throws IOException {
             this.connection = connection;
             this.peerID = peerID;
 
             //initialize Input and Output streams
-            out = new ObjectOutputStream(connection.getOutputStream());
+            out = new DataOutputStream(connection.getOutputStream());
             out.flush();
-            in = new ObjectInputStream(connection.getInputStream());
+            in = new DataInputStream(connection.getInputStream());
         }
 
         public void run() {
             try {
                 while (true) {
                     //receive the message sent from the peer
-                    message = (String) in.readObject();
+                    message = (String) in.readUTF();
                     //show the message to the user
                     System.out.println("Receive message: " + message + " from peer " + peerID);
                     //Capitalize all letters in the message
@@ -231,8 +233,8 @@ public class Peer {
                     //send MESSAGE back to the peer
                     sendMessage(MESSAGE);
                 }
-            } catch (ClassNotFoundException classnot) {
-                System.err.println("Data received in unknown format");
+            } catch (IOException ioException) {
+                System.err.println("Error reading message from peer " + peerID + ": " + ioException.getMessage());
             } finally {
                 //Close connections
                 try {
@@ -248,7 +250,7 @@ public class Peer {
         public void sendMessage(String msg) {
             // Will need to be modified for file transfer, this is basic P2P connection testing
             try{
-                out.writeObject(msg);
+                out.writeUTF(msg);
                 out.flush();
                 System.out.println("Send message: " + msg + " to Peer " + peerID);
             }
