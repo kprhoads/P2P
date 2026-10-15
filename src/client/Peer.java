@@ -15,6 +15,13 @@ public class Peer {
     private final Path peerDir;
     // List of all peers that this peer will attempt to connect with (In project example, 1003 will connect with 1002 and 1001)
     private ArrayList<Integer> peersToConnect;
+    private int numPreferredNeighbors;
+    private int unchokingInterval;
+    private int optimisticUnchokingInterval;
+    private String fileName;
+    private long fileSize;
+    private int pieceSize;
+    private int numPieces;
     // List containing all Connection objects for this peer
     private ArrayList<Connection> connections;
 
@@ -59,8 +66,58 @@ public class Peer {
                 }
             }
         } catch(IOException e){
-                System.err.println("Error reading the PeerInfo config file: " + e.getMessage());
+            System.err.println("Error reading the PeerInfo config file: " + e.getMessage());
+        }
+    }
+
+    private void readCommonConfig() {
+        /*
+         * Helper function for reading in the required information from the Common.cfg file:
+         *   - Number of preferred neighbors
+         *   - Unchoking interval
+         *   - Optimistic unchoking interval
+         *   - File name in which all peers are interested
+         *   - File size in bytes
+         *   - Piece size in bytes
+         */
+        try {
+            List<String> lines = Files.readAllLines(Paths.get("Common.cfg"));
+
+            for (String line : lines) {
+                line = line.trim();
+                // skip empty lines
+                if (line.isEmpty()) {
+                    continue;
+                }
+
+                String[] content  = line.split("\\s+", 2);
+                // check each property needed, break after each is written
+                switch (content[0]) {
+                    case "NumberOfPreferredNeighbors":
+                        this.numPreferredNeighbors = Integer.parseInt(content[1]);
+                        break;
+                    case "UnchokingInterval":
+                        this.unchokingInterval = Integer.parseInt(content[1]);
+                        break;
+                    case "OptimisticUnchokingInterval":
+                        this.optimisticUnchokingInterval = Integer.parseInt(content[1]);
+                        break;
+                    case "FileName":
+                        this.fileName = content[1];
+                        break;
+                    case "FileSize":
+                        this.fileSize = Long.parseLong(content[1]);
+                        break;
+                    case "PieceSize":
+                        this.pieceSize = Integer.parseInt(content[1]);
+                        break;
+                }
             }
+            // number of pieces, rounding up one to avoid lost data
+            numPieces = (int) ((fileSize + pieceSize - 1) / pieceSize);
+        } catch (IOException e) {
+            System.err.println("Error reading the Common config file: " + e.getMessage());
+        }
     }
 
     private void startListening() {
@@ -154,6 +211,10 @@ public class Peer {
         int id = Integer.parseInt(args[0]);
         Peer p = new Peer(id);
         p.readPeerInfo();
+        p.readCommonConfig();
         System.out.println("host=" + p.host + " port=" + p.port + " hasFile=" + p.hasFile + " connectTo=" + p.peersToConnect);
+        System.out.println("numPreferredNeighbors=" + p.numPreferredNeighbors + "unchokingInterval=" + p.unchokingInterval +
+                "optimisticUnchokingInterval="+ p.optimisticUnchokingInterval + "fileName=" + p.fileName +
+                "fileSize=" + p.fileSize + "pieceSize" + p.pieceSize);
     }
 }
