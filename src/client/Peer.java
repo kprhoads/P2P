@@ -220,7 +220,6 @@ public class Peer {
         private int peerID;        //The ID of the connected peer
 
         public Connection(Socket connection, int peerID) throws IOException {
-        public Connection(Socket connection, int peerID) throws IOException {
             this.connection = connection;
             this.peerID = peerID;
 
@@ -242,7 +241,7 @@ public class Peer {
                     //send MESSAGE back to the peer
                     sendMessage(MESSAGE);
                 }
-            } catch (ClassNotFoundException | IOException classnot) {
+            } catch (IOException classnot) {
                 System.err.println("Data received in unknown format");
             } finally {
                 //Close connections
