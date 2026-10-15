@@ -27,7 +27,7 @@ public class Peer {
     private int numPieces;
 
     // List of all peers that this peer will attempt to connect with (In project example, 1003 will connect with 1002 and 1001)
-    private ArrayList<Integer> peersToConnect;
+    private ArrayList<PeerEntry> peersToConnect;
     // List containing all Connection objects for this peer
     private ArrayList<Connection> connections;
 
@@ -36,7 +36,22 @@ public class Peer {
         // Peer directories are located in root project directory
         this.peerDir = Paths.get("peer_" + myId);
         this.peersToConnect = new ArrayList<>();
-        this.connections = new ArrayList<>();
+        this.connections = new ArrayList<>(Collections.synchronizedList(new ArrayList<>()));
+    }
+
+    private static class PeerEntry {
+        final int id;
+        final String host;
+        final int port;
+
+        PeerEntry(int id, String host, int port) {
+            this.id = id;
+            this.host = host;
+            this.port = port;
+        }
+
+        @Override
+        public String toString() { return String.valueOf(id); }
     }
 
     private int doHandshake(Socket s) throws IOException {
@@ -90,7 +105,7 @@ public class Peer {
                     break;
                 } else {
                     // The current line contains a peer we will need to connect to. Add to peersToConnect
-                    this.peersToConnect.add(Integer.parseInt(content[0]));
+                    this.peersToConnect.add(new PeerEntry(Integer.parseInt(content[0]), content[1], Integer.parseInt(content[2])));
                 }
             }
         } catch(IOException e){
@@ -166,7 +181,6 @@ public class Peer {
                 System.err.println("Listener stopped: " + e.getMessage());
             }
         });
-        t.setDaemon(true);  // Thread exits when main thread ends
         t.start();
     }
 
@@ -179,16 +193,13 @@ public class Peer {
         System.out.println("Connected peer " + peerId + " on socket " + s.getRemoteSocketAddress());
     }
 
-    private void connectTo(String host, int port, int expectedId) throws IOException {
-        // Connect to remote peer and send handshake
+    private void connectTo(String host, int port, int expectedId) {
         Socket s = null;
         try {
             s = new Socket(host, port);
-            // ID the other side actually sent
             int remoteId = doHandshake(s);
-            // check if passed ID matches the ID returned from handshake, freak out if no
             if (remoteId != expectedId) {
-                throw new IOException("Handshake ID mismatch: expected " + expectedId + ", got " + remoteId);
+                throw new IOException("Expected peer " + expectedId + " but got " + remoteId);
             }
             Connection c = new Connection(s, remoteId);
             connections.add(c);
@@ -196,12 +207,7 @@ public class Peer {
             System.out.println("Connected to peer " + remoteId + " on socket " + s.getRemoteSocketAddress());
         } catch (IOException e) {
             System.err.println("Could not connect to " + host + " on port " + port + ": " + e.getMessage());
-            if (s != null) {
-                // close quietly
-                try {
-                    s.close();
-                } catch (IOException ignored) {}
-            }
+            try { if (s != null) s.close(); } catch (IOException ignored) {}
         }
     }
 
@@ -273,9 +279,9 @@ public class Peer {
         Peer p = new Peer(id);
         p.readPeerInfo();
         p.readCommonConfig();
-        System.out.println("host=" + p.host + " port=" + p.port + " hasFile=" + p.hasFile + " connectTo=" + p.peersToConnect);
-        System.out.println("numPreferredNeighbors=" + p.numPreferredNeighbors + "unchokingInterval=" + p.unchokingInterval +
-                "optimisticUnchokingInterval="+ p.optimisticUnchokingInterval + "fileName=" + p.fileName +
-                "fileSize=" + p.fileSize + "pieceSize" + p.pieceSize);
+        p.startListening();
+        for (PeerEntry e : p.peersToConnect) {
+            p.connectTo(e.host, e.port, e.id);
+        }
     }
 }
