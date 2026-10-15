@@ -5,16 +5,19 @@ import java.io.*;
 import java.nio.*;
 import java.nio.channels.*;
 import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class Peer {
+    private static final byte[] HANDSHAKE_HEADER = "P2PFILESHARINGPROJ".getBytes(StandardCharsets.US_ASCII);
+
     private final int myId;
     private String host;
     private int port;
     private int hasFile;
     private final Path peerDir;
-    // List of all peers that this peer will attempt to connect with (In project example, 1003 will connect with 1002 and 1001)
-    private ArrayList<Integer> peersToConnect;
+
+    // Common.cfg data
     private int numPreferredNeighbors;
     private int unchokingInterval;
     private int optimisticUnchokingInterval;
@@ -22,6 +25,9 @@ public class Peer {
     private long fileSize;
     private int pieceSize;
     private int numPieces;
+
+    // List of all peers that this peer will attempt to connect with (In project example, 1003 will connect with 1002 and 1001)
+    private ArrayList<Integer> peersToConnect;
     // List containing all Connection objects for this peer
     private ArrayList<Connection> connections;
 
@@ -31,6 +37,28 @@ public class Peer {
         this.peerDir = Paths.get("peer_" + myId);
         this.peersToConnect = new ArrayList<>();
         this.connections = new ArrayList<>();
+    }
+
+    private int doHandshake(Socket s) throws IOException {
+        DataOutputStream dout = new DataOutputStream(s.getOutputStream());
+        DataInputStream din = new DataInputStream(s.getInputStream());
+
+        // send handshake to connected peer
+        dout.write(HANDSHAKE_HEADER);
+        dout.write(new byte[10]);
+        dout.writeInt(myId);
+
+        // receive handshake from connected peer
+        byte[] peer_header = new byte[18];
+        din.readFully(peer_header);
+        din.readFully(new byte[10]);
+        int peerId = din.readInt();
+
+        // check if the header received matches
+        if (!Arrays.equals(peer_header, HANDSHAKE_HEADER)) {
+            throw new IOException("Invalid handshake header from connected peer");
+        }
+        return peerId;
     }
 
     private void readPeerInfo() {
@@ -123,14 +151,16 @@ public class Peer {
     private void startListening() {
         // We need a thread to constantly listen for new connections
         Thread t = new Thread(() -> {
-            try (ServerSocket listener = new ServerSocket(this.port)) {
-                System.out.println("Listening on port " + this.port);
+            try (ServerSocket listener = new ServerSocket(port)) {
+                System.out.println("Listening on port " + port);
                 while (true) {
-                    Socket connection = listener.accept();
-                    /*
-                     * We need to do a handshake here to determine the ID of the peer connecting
-                     * and create a Connection object, appending to the connections array.
-                     */
+                    Socket s = listener.accept();
+                    try {
+                        connectPeer(s);
+                    } catch (IOException e){
+                        System.err.println("Peer connection rejected: " + e.getMessage());
+                        s.close();
+                    }
                 }
             } catch (IOException e) {
                 System.err.println("Listener stopped: " + e.getMessage());
@@ -138,7 +168,31 @@ public class Peer {
         });
         t.setDaemon(true);  // Thread exits when main thread ends
         t.start();
+    }
 
+    private void connectPeer(Socket s) throws IOException {
+        // Send handshake to accept remote peer connection
+        int peerId = doHandshake(s);
+        Connection c = new Connection(s, peerId)
+        connections.add(c);
+        c.start();
+        System.out.println("Connected peer " + peerId + " on socket " + s.getRemoteSocketAddress());
+    }
+
+    private void connectTo(String host, int port, int peerId) {
+        // Connect to remote peer and send handshake
+        Socket s = null;
+        try {
+            s = new Socket(host, port);
+            int peerId = doHandshake(s);
+            Connection c = new Connection(s, peerId)
+            connections.add(c);
+            c.start();
+            System.out.println("Connected to peer " + peerId + " on socket " + s.getRemoteSocketAddress());
+        } catch (IOException e) {
+            System.err.println("Could not connect to " + host + " on port " + port + ": " + e.getMessage());
+            if (s != null) s.close();
+        }
     }
 
     /*
@@ -158,30 +212,27 @@ public class Peer {
         public Connection(Socket connection, int peerID) {
             this.connection = connection;
             this.peerID = peerID;
+
+            //initialize Input and Output streams
+            out = new ObjectOutputStream(connection.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(connection.getInputStream());
         }
 
         public void run() {
             try {
-                //initialize Input and Output streams
-                out = new ObjectOutputStream(connection.getOutputStream());
-                out.flush();
-                in = new ObjectInputStream(connection.getInputStream());
-                try {
-                    while (true) {
-                        //receive the message sent from the peer
-                        message = (String) in.readObject();
-                        //show the message to the user
-                        System.out.println("Receive message: " + message + " from peer " + peerID);
-                        //Capitalize all letters in the message
-                        MESSAGE = message.toUpperCase();
-                        //send MESSAGE back to the peer
-                        sendMessage(MESSAGE);
-                    }
-                } catch (ClassNotFoundException classnot) {
-                    System.err.println("Data received in unknown format");
+                while (true) {
+                    //receive the message sent from the peer
+                    message = (String) in.readObject();
+                    //show the message to the user
+                    System.out.println("Receive message: " + message + " from peer " + peerID);
+                    //Capitalize all letters in the message
+                    MESSAGE = message.toUpperCase();
+                    //send MESSAGE back to the peer
+                    sendMessage(MESSAGE);
                 }
-            } catch (IOException ioException) {
-                System.out.println("Disconnect with Peer " + peerID);
+            } catch (ClassNotFoundException classnot) {
+                System.err.println("Data received in unknown format");
             } finally {
                 //Close connections
                 try {
