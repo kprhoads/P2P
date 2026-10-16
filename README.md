@@ -1,6 +1,6 @@
 # P2P
 
-COMPILING
+COMPILING (FROM PROJECT ROOT)
 
 javac -d out -sourcepath src src\client\Peer.java
 
