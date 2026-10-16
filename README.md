@@ -1,10 +1,14 @@
 # P2P
 
-TEMPORARY TESTING
+TESTING in src
 
-javac Peer.java
+javac client/Peer.java messages/Message.java
 
-java Peer 1003
+In two consoles:
+
+java -cp .. client.Peer 1001
+
+java -cp .. client.Peer 1002
 
 ## Authors:
 Kevin Rhoads
