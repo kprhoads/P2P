@@ -1,14 +1,16 @@
 # P2P
 
-TESTING in src
+COMPILING
 
-javac client/Peer.java messages/Message.java
+javac -d out -sourcepath src src\client\Peer.java
+
+TESTING
 
 In two consoles:
 
-java -cp .. client.Peer 1001
+java -cp out client.Peer 1001
 
-java -cp .. client.Peer 1002
+java -cp out client.Peer 1002
 
 ## Authors:
 Kevin Rhoads
